@@ -17,6 +17,8 @@ const Contact = () => {
   });
 
   const [submitted, setSubmitted] = useState(false);
+  const [sending, setSending] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
 
   const validateEmail = (email: string) => {
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -64,19 +66,41 @@ const Contact = () => {
     }
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const formspreeId = import.meta.env.VITE_FORMSPREE_ID;
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
-    if (validateForm()) {
-      // Placeholder submit action
-      console.log('Form submitted:', formData);
-      setSubmitted(true);
-      
-      // Reset form after 3 seconds
-      setTimeout(() => {
+    setSubmitError(null);
+
+    if (!validateForm()) return;
+
+    if (formspreeId) {
+      setSending(true);
+      try {
+        const res = await fetch(`https://formspree.io/f/${formspreeId}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            name: formData.name,
+            email: formData.email,
+            message: formData.message,
+            _replyto: formData.email,
+          }),
+        });
+        if (!res.ok) throw new Error('Failed to send');
+        setSubmitted(true);
         setFormData({ name: '', email: '', message: '' });
-        setSubmitted(false);
-      }, 3000);
+        setTimeout(() => setSubmitted(false), 5000);
+      } catch {
+        setSubmitError('Something went wrong. Please try again or email me directly.');
+      } finally {
+        setSending(false);
+      }
+    } else {
+      // No Formspree ID: show success for demo / fallback
+      setSubmitted(true);
+      setFormData({ name: '', email: '', message: '' });
+      setTimeout(() => setSubmitted(false), 3000);
     }
   };
 
@@ -161,11 +185,16 @@ const Contact = () => {
                   )}
                 </div>
 
+                {submitError && (
+                  <p className="text-red-500 text-sm">{submitError}</p>
+                )}
+
                 <button
                   type="submit"
-                  className="w-full px-6 py-3 bg-neutral-300 text-neutral-900 font-medium rounded-md hover:bg-neutral-50 transition-colors duration-150"
+                  disabled={sending}
+                  className="w-full px-6 py-3 bg-neutral-300 text-neutral-900 font-medium rounded-md hover:bg-neutral-50 transition-colors duration-150 disabled:opacity-70 disabled:cursor-not-allowed"
                 >
-                  Send Message
+                  {sending ? 'Sending...' : 'Send Message'}
                 </button>
               </form>
             )}
